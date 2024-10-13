@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# Local Build Folders
+build/
+.vscode/
