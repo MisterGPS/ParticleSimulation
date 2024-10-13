@@ -1,0 +1,10 @@
+^E:\C++\PARTICLESIMULATION\BUILD\RELEASE - X64\CMAKEFILES\F0FFA3803B1232152DFB19C404A698A8\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SE:/C++/ParticleSimulation "-BE:/C++/ParticleSimulation/build/Release - x64" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "E:/C++/ParticleSimulation/build/Release - x64/ParticleSimulation.sln"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

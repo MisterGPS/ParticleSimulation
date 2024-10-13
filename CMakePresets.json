@@ -1,0 +1,169 @@
+{
+    "version": 7,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 28,
+        "patch": 1
+    },
+    "configurePresets": [
+        {
+            "name": "windows-only",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+                "CMAKE_C_COMPILER": "cl.exe",
+                "CMAKE_CXX_COMPILER": "cl.exe"
+            }
+        },
+        {
+            "name": "arm64-target",
+            "hidden": true,
+            "description": "Using compilers for Visual Studio 17 2022 (arm64 architecture)",
+            "generator": "Visual Studio 17 2022",
+            "toolset": {
+                "value": "host=ARM64,version=14.41",
+                "strategy": "external"
+            },
+            "architecture": "arm64"
+        },
+        {
+            "name": "x64-target",
+            "hidden": true,
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "generator": "Visual Studio 17 2022",
+            "toolset": {
+                "value": "host=x64,version=14.41",
+                "strategy": "external"
+            },
+            "architecture": "x64"
+        },
+        {
+            "name": "Debug - arm64",
+            "displayName": "Visual Studio Community 2022 Debug - arm64",
+            "description": "Using compilers for Visual Studio 17 2022 (arm64 architecture)",
+            "inherits": ["windows-only", "arm64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "Release - arm64",
+            "displayName": "Visual Studio Community 2022 Release - arm64",
+            "description": "Using compilers for Visual Studio 17 2022 (arm64 architecture)",
+            "inherits": ["windows-only", "arm64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "MinRelSize - arm64",
+            "displayName": "Visual Studio Community 2022 MinRelSize - arm64",
+            "description": "Using compilers for Visual Studio 17 2022 (arm64 architecture)",
+            "inherits": ["windows-only", "arm64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "RelWithDebInfo - arm64",
+            "displayName": "Visual Studio Community 2022 RelWithDebInfo - arm64",
+            "description": "Using compilers for Visual Studio 17 2022 (arm64 architecture)",
+            "inherits": ["windows-only", "arm64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "Debug - x64",
+            "displayName": "Visual Studio Community 2022 Debug - x64",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "inherits": ["windows-only", "x64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "Release - x64",
+            "displayName": "Visual Studio Community 2022 Release - x64",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "inherits": ["windows-only", "x64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "MinRelSize - x64",
+            "displayName": "Visual Studio Community 2022 MinRelSize - x64",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "inherits": ["windows-only", "x64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "RelWithDebInfo - x64",
+            "displayName": "Visual Studio Community 2022 RelWithDebInfo - x64",
+            "description": "Using compilers for Visual Studio 17 2022 (x64 architecture)",
+            "inherits": ["windows-only", "x64-target"],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Release - arm64",
+            "displayName": "VS 2022 Release - arm64",
+            "configurePreset": "Release - arm64",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug - arm64",
+            "displayName": "VS 2022 Debug - arm64",
+            "configurePreset": "Debug - arm64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "MinRelSize - arm64",
+            "displayName": "VS 2022 MinRelSize - arm64",
+            "configurePreset": "Release - arm64",
+            "configuration": "MinRelSize"
+        },
+        {
+            "name": "RelWithDebInfo - arm64",
+            "displayName": "VS 2022 RelWithDebInfo - arm64",
+            "configurePreset": "Debug - arm64",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "Release - x64",
+            "displayName": "Release - x64",
+            "configurePreset": "Release - x64",
+            "configuration": "Release"
+        },
+        {
+            "name": "Debug - x64",
+            "displayName": "Debug - x64",
+            "configurePreset": "Debug - x64",
+            "configuration": "Debug"
+        },
+        {
+            "name": "MinRelSize - x64",
+            "displayName": "MinRelSize - x64",
+            "configurePreset": "Release - x64",
+            "configuration": "Release"
+        },
+        {
+            "name": "RelWithDebInfo - x64",
+            "displayName": "RelWithDebInfo - x64",
+            "configurePreset": "Debug - x64",
+            "configuration": "Debug"
+        }
+    ]
+}
