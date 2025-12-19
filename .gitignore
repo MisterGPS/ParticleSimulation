@@ -34,3 +34,4 @@
 # Local Build Folders
 build/
 .vscode/
+/.vs

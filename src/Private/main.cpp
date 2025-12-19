@@ -15,12 +15,12 @@
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 4.0f    // Unit in meters; defines the size of the window in meters
-#define GRAVITY_SCALE 0.00001
-#define NUM_PARTICLES 5000
-#define PARTICLE_RADIUS 1.0f
+#define GRAVITY_SCALE 0.0015
+#define NUM_PARTICLES 10000
+#define PARTICLE_RADIUS 2.0f
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
-#define B_RENDER_FRAME false
+#define B_RENDER_FRAME true
 
 
 typedef std::tuple<glm::vec<2, double>, glm::vec<2, double>> Boundaries;
@@ -153,12 +153,12 @@ int main() {
     Particle* particles = new Particle[NUM_PARTICLES];
 
     glm::vec2 galaxyCenter = glm::vec2(WindowWidth / 2.0, WindowHeight / 2.0);
-    float galaxyVelocity = 8;
-    float galaxyRadius = 250 * DISTANCE_SCALE;
+    float galaxyVelocity = 0;
+    float galaxyRadius = 250 * DISTANCE_SCALE * 2;
     particles = new Particle[NUM_PARTICLES];
     int centerIDX = std::floor(NUM_PARTICLES / 2.0);
-    spawnGalaxy(particles, centerIDX, galaxyVelocity, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter + glm::vec2(WindowWidth * 0.3, WindowHeight * 0.2), glm::vec2(-0.4, -0.2) * galaxyVelocity);
-    spawnGalaxy(&particles[centerIDX], centerIDX, galaxyVelocity, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter - glm::vec2(WindowWidth * 0.3, WindowHeight * 0.2), glm::vec2(-0.1, 0.2)* galaxyVelocity);
+    spawnGalaxy(particles, NUM_PARTICLES, 3.5, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter, glm::vec2(-0.4, -0.2) * galaxyVelocity);
+    //spawnGalaxy(&particles[centerIDX], centerIDX, galaxyVelocity, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter - glm::vec2(WindowWidth * 0.3, WindowHeight * 0.2), glm::vec2(-0.1, 0.2)* galaxyVelocity);
 
 
     unsigned int ParticlesVBO, ParticlesVAO;
@@ -251,6 +251,8 @@ int main() {
         glfwPollEvents();
     }
 
+    delete[] particles;
+
     glfwTerminate();
 
     return 0;
@@ -342,10 +344,6 @@ void verletSolver(Particle* particles, unsigned int numParticles, double deltaTi
         particles[i].velocity += acceleration * static_cast<float>(deltaTime);
         particles[i].accumulatedForces = glm::vec2(0);
 
-        /*
-        if (acceleration.x != acceleration.x || acceleration.y != acceleration.y)
-            int j = 0;
-        */// Debugging Breakpoint for nan values
 
 #ifdef DEBUG
         if (i == 0)
@@ -559,7 +557,7 @@ Particle* spawnGalaxy(Particle* particles, int numParticles, float velocity, flo
         double velAngle = randAngle + std::_Pi_val / 2.0;
         particles[i].position = glm::vec2(cos(randAngle), -sin(randAngle)) * (float)centerDeviation + center;
         particles[i].velocity = glm::vec2(cos(velAngle), -sin(velAngle)) * velocity + galaxyVelocity;
-        particles[i].mass = 99999999; // sqrt((double)std::rand() / RAND_MAX) * 1000000 + 1;  // Add 1 to avoid numeric instability and a resulting weight of zero -> nan force
+        particles[i].mass = 9999999; // sqrt((double)std::rand() / RAND_MAX) * 1000000 + 1;  // Add 1 to avoid numeric instability and a resulting weight of zero -> nan force
         particles[i].radius = particleRadius;
     }
 
