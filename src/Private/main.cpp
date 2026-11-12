@@ -16,16 +16,17 @@
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 40000
-#define PARTICLE_RADIUS 2.0f
+#define NUM_PARTICLES 600000
+#define PARTICLE_RADIUS 1
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
 #define TOTAL_MASS 40000000
 #define INITIAL_MEAN_VELOCITY 200
+#define GALAXY_STDDEV_SPREAD 0.5
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
-#define B_RENDER_FRAME true
+#define B_RENDER_FRAME false
 
-#define DELTA_TIME (1.0 / 60.0)
+#define DELTA_TIME (1.0 / 10.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -168,7 +169,7 @@ int main() {
     glm::vec2 galaxyCenter = glm::vec2(WindowWidth / 2.0, WindowHeight / 2.0);
     float galaxyVelocity = 0;
     float galaxyRadius = 250 * DISTANCE_SCALE * 2;
-    float stddev = galaxyRadius * 0.1;
+    float stddev = galaxyRadius * GALAXY_STDDEV_SPREAD;
     particles = new Particle[NUM_PARTICLES];
     spawnGalaxy(particles, NUM_PARTICLES, INITIAL_MEAN_VELOCITY, galaxyRadius, particleDiameter / 2.0f, stddev, galaxyCenter, glm::vec2(-0.4, -0.2) * galaxyVelocity);
 
