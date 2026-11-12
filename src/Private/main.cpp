@@ -14,13 +14,21 @@
 
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 1200
-#define DISTANCE_SCALE 4.0f    // Unit in meters; defines the size of the window in meters
+#define DISTANCE_SCALE 8.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 10000
+#define NUM_PARTICLES 50000
 #define PARTICLE_RADIUS 2.0f
+#define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
+
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME true
+
+#ifdef BENCHMARK
+#define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
+#define BENCHMARK_STEPS 500             // Measured steps; the application closes after warmup + measured steps
+#define BENCHMARK_DELTA_TIME (1.0 / 60.0)  // Fixed timestep resembling a 60fps clock
+#endif
 
 
 typedef std::tuple<glm::vec<2, double>, glm::vec<2, double>> Boundaries;
@@ -180,7 +188,7 @@ int main() {
     // Render loop
     glClearColor(0, 0, 0, 0);
     glPointSize(PARTICLE_RADIUS);
-    glLineWidth(0.1);
+    glLineWidth(1.0f);
 
     glm::mat4 locTransform = glm::mat4(1.0f);
     locTransform = glm::scale(locTransform, glm::vec3(2.0f / WindowWidth, 2.0f / WindowHeight, 2.0f / WindowHeight));
@@ -198,7 +206,9 @@ int main() {
         double frameTime = (glfwGetTime() - loopTime);
         double deltaTime = frameTime * SIMULATION_SPEED;
         loopTime = glfwGetTime();  
-#ifdef DEBUG
+#ifdef BENCHMARK
+        deltaTime = BENCHMARK_DELTA_TIME * SIMULATION_SPEED;
+#elifdef DEBUG
         deltaTime = 1.0 / 45.0 * SIMULATION_SPEED;
 #endif
 
@@ -249,6 +259,13 @@ int main() {
         
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+#ifdef BENCHMARK
+        if (frameCount >= BENCHMARK_WARMUP_STEPS + BENCHMARK_STEPS)
+        {
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        }
+#endif
     }
 
     delete[] particles;
@@ -298,7 +315,7 @@ void updateParticles(Particle* particles, unsigned int numParticles, double delt
     quadTree->CalculateForces(particles, NUM_PARTICLES);  // TODO: Optimize this. It is now multithreaded, but the calculation per particle is still really slow
     if (bShowQuadTree)
     {
-        boundingBoxes->clear();
+        delete boundingBoxes;
         boundingBoxes = quadTree->GetBoundingBoxes();
     }
     delete quadTree;
@@ -336,7 +353,7 @@ void verletSolver(Particle* particles, unsigned int numParticles, double deltaTi
 {
     // 2. Apply forces (acceleration) and velocitys to particles
 #pragma omp parallel for
-    for (uint32_t i = 0; i < numParticles; ++i)
+    for (signed int i = 0; i < numParticles; ++i)
     {
         glm::vec2 acceleration = particles[i].accumulatedForces / particles[i].mass;
         glm::vec<2, double> deltaPosition = particles[i].velocity * static_cast<float>(deltaTime) + 0.5f * acceleration * static_cast<float>(deltaTime * deltaTime);
@@ -404,7 +421,7 @@ void boundariesConstraintImpulse(Particle* particles, unsigned int numParticles,
         else continue;
 
         // -2 : -(1 + CoefficientOfRestitution)    Full conservation of energy
-        float collisionVelocity = -2 * glm::dot(particles[i].velocity, collisionNormal);
+        float collisionVelocity = -(1 + COEFFICIENT_OF_RESTITUTION) * glm::dot(particles[i].velocity, collisionNormal);
 
 
         glm::vec2 Impulse = collisionVelocity * particles[i].mass * collisionNormal;
@@ -466,7 +483,11 @@ void collisionConstraintSolver(Particle* particles, unsigned int numParticles, d
             {
                 glm::vec<2, double> deltaVelocity = particle1.velocity - particle2.velocity;
                 glm::vec<2, double> collisionNormal = glm::normalize(particle2.position - particle1.position);
-                double collisionVelocity = -(1 + 1) * glm::dot(deltaVelocity, collisionNormal);
+                double collisionVelocity = -(1 + COEFFICIENT_OF_RESTITUTION) * glm::dot(deltaVelocity, collisionNormal);
+                
+                double approachSpeed = glm::dot(deltaVelocity, collisionNormal);
+                if (approachSpeed <= 0) continue;  // already separating
+
                 double Impulse = collisionVelocity * (particle1.mass * particle2.mass / (particle1.mass + particle2.mass));
                 glm::vec2 ImpulseVector = Impulse * collisionNormal;
 
@@ -512,8 +533,8 @@ void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, 
     float* vertices = new float[arrayLength];
     unsigned int* indices = new unsigned int[arrayLength];
 
-// #pragma omp parallel for    boxes->size()
-    for (size_t i = 0; i < numBoxes; ++i)
+#pragma omp parallel for
+    for (signed int i = 0; i < numBoxes; ++i)
     {
         const BoundingBox& box = (*boxes)[i];
 
@@ -546,7 +567,7 @@ void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, 
 Particle* spawnGalaxy(Particle* particles, int numParticles, float velocity, float radius, float particleRadius, float stddev, glm::vec2 center, glm::vec2 galaxyVelocity)
 {
 #pragma omp parallel for
-    for (size_t i = 0; i < numParticles; ++i)
+    for (signed int i = 0; i < numParticles; ++i)
     {
         // Particles spawn in a normal distribution distance from the radius
         double randNumber = ((std::rand() / (double)RAND_MAX) * 2 - 1) * 25;

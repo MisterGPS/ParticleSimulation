@@ -15,6 +15,12 @@ elseif (CMAKE_BUILD_TYPE STREQUAL Debug)
     message("Added compile definition _DEBUG")
 endif()
 
+option(BENCHMARK "Build with fixed timestep and automatic exit for benchmarking" OFF)
+if (BENCHMARK)
+    add_compile_definitions(BENCHMARK)
+    message("Added compile definition BENCHMARK")
+endif()
+
 set(LIBRARY_DIRECTORY "${CMAKE_SOURCE_DIR}/../Libraries")
 set(INCLUDE_DIRECTORY "${LIBRARY_DIRECTORY}/include")
 set(LIBS_DIRECTORY "${LIBRARY_DIRECTORY}/libs")
@@ -35,6 +41,8 @@ add_executable(ParticleSimulation
         src/Public/Camera.h     src/Private/Camera.cpp
         src/Public/QuadTree.h   src/Private/QuadTree.cpp
         src/Shaders/ShadersInComp.h)
+
+target_compile_options(ParticleSimulation PRIVATE /openmp)
 
 add_custom_command(TARGET ParticleSimulation PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

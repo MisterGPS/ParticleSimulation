@@ -51,7 +51,7 @@ void QuadTree::CalculateForces(Particle* particles, int numParticles)
 		int start = i * threadLength;
 		int end = (i + 1) * threadLength - 1;
 		if (i == NUM_THREADS - 1)
-			end = numParticles;
+			end = numParticles - 1;
 
 		threads[i] = std::thread(&QuadTree::MP_CalculateEffecingForce, this, particles, start, end);
 
