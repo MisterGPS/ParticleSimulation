@@ -3,13 +3,12 @@
 #include <glm.hpp>
 #include <vector>
 
-#define GRAVITATIONAL_CONSTANT 0.0000000000667430
+#define GRAVITATIONAL_CONSTANT 1.0f
 #define COEFFICIENT_OF_RESTITUTION 1.0
-#define SIMULATION_SPEED 125
-#define FORCE_SCALE 100.0
-#define ATTRACTION_FORCE 1000.0
+#define SIMULATION_SPEED 1
+#define FORCE_SCALE 1.0
 #define THETA 0.5f  // Value between 0 and 1. The smaller the number the more accurate the simulation. 0.5 provides a good trade off between performance and simulation accuracy. A very large value >1 approximates a single force in the screens center
-#define DISTANCE_EPSILON 1
+#define DISTANCE_EPSILON 5
 #define NUM_THREADS 12
 #define MAX_RECURSION 20
 

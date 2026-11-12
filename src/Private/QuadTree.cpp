@@ -105,11 +105,9 @@ inline glm::vec2 Node::GetInteractionForce(MassObject& firstPoint, MassObject& s
 	auto& [mass1, position1] = firstPoint;
 	auto& [mass2, position2] = secondPoint;
 
-	glm::vec<2, double> deltaVector = (position2 - position1);  // TODO: Handle case, where position1 == position2 to avoid 'nan' values
-	float pointDistanceSquared = sqrt(powf(deltaVector.x, 2) + powf(deltaVector.y, 2));
-	
-	glm::vec<2, double> pointDirection = glm::normalize(deltaVector);
-	glm::vec<2, double> affectingForce = pointDirection * GRAVITATIONAL_CONSTANT * static_cast<double>(mass1 * mass2) / std::pow(pointDistanceSquared + DISTANCE_EPSILON, 1.5);
+	glm::vec<2, double> deltaVector = (position2 - position1);  // TODO: Handle case, where position1 == position2 to avoid 'nan' values	
+	float d2 = glm::dot(deltaVector, deltaVector) + DISTANCE_EPSILON * DISTANCE_EPSILON;
+	glm::vec<2, double> affectingForce = double(GRAVITATIONAL_CONSTANT) * static_cast<double>(mass1 * mass2) / (d2 * sqrtf(d2)) * deltaVector;
 
 	return affectingForce * FORCE_SCALE;
 }
@@ -208,7 +206,7 @@ void Internal::CalculateEffectingForce(Particle* inParticle)
 	{
 		MassObject object1 = MassObject(inParticle->mass, inParticle->position);
 		MassObject object2 = MassObject(mass, centerOfMass);
-		inParticle->accumulatedForces += GetInteractionForce(object1, object2);
+		inParticle->accelerationForce += GetInteractionForce(object1, object2);
 	}
 	else
 	{
@@ -369,7 +367,7 @@ void End::CalculateEffectingForce(Particle* inParticle)
 		MassObject object1 = MassObject(inParticle->mass, inParticle->position);
 		MassObject object2 = MassObject(particle->mass, particle->position);
 
-		inParticle->accumulatedForces += GetInteractionForce(object1, object2);
+		inParticle->accelerationForce += GetInteractionForce(object1, object2);
 	}
 }
 

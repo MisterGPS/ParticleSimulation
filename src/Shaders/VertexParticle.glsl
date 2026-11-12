@@ -9,7 +9,7 @@ uniform float velocityMax;
 out vec4 VertexColor;
 
 void main() {
-    float colorVelocity = sqrt(pow(aVelocity.x, 2) + pow(aVelocity.y, 2)) * (1 / velocityMax);
+    float colorVelocity = clamp(sqrt(pow(aVelocity.x, 2) + pow(aVelocity.y, 2)) * (1 / velocityMax), 0.0, 1.0);
     VertexColor = colorVelocity * aColorFast + (1 - colorVelocity) * aColorSlow;
     gl_Position = transformMatrix * vec4(aPos, 0, 1.0f);
 }

@@ -14,15 +14,18 @@
 
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 1200
-#define DISTANCE_SCALE 8.0f    // Unit in meters; defines the size of the window in meters
+#define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 50000
+#define NUM_PARTICLES 40000
 #define PARTICLE_RADIUS 2.0f
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
-
+#define TOTAL_MASS 40000000
+#define INITIAL_MEAN_VELOCITY 200
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME true
+
+#define DELTA_TIME (1.0 / 60.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -41,7 +44,9 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 void handleKeyInput(GLFWwindow* window, double deltaTime);
 
 void updateParticles(Particle* particles, unsigned int numParticles, double deltaTime, const Boundaries& boundaries);
-void verletSolver(Particle* particles, unsigned int numParticles, double deltaTime);
+void calculateForces(Particle* particles, unsigned int numParticles);
+void halfKickAndDrift(Particle* particles, unsigned int numParticles, double deltaTime);
+void halfKick(Particle* particles, unsigned int numParticles, double deltaTime);
 void addGravityForce(Particle* particles, unsigned int numParticles, double deltaTime);
 void boundariesConstraintImpulse(Particle* particles, unsigned int numParticles, double deltaTime, const Boundaries& boundaries);
 void boundariesConstraintBounce(Particle* particles, unsigned int numParticles, double deltaTime, const Boundaries& boundaries);
@@ -74,8 +79,8 @@ int main() {
 
     std::srand(std::time(0));
     glfwInit();
-    glfwWindowHint(GLFW_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
 
     GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Particle Simulation", nullptr, nullptr);
@@ -130,7 +135,7 @@ int main() {
 
     shader.BuildShaderProgram();
     shader.Use();
-    shader.SetFloat("velocityMax", 0.0275 * DISTANCE_SCALE * (float)SIMULATION_SPEED);
+    shader.SetFloat("velocityMax", INITIAL_MEAN_VELOCITY * 3);
 
     shaderFrame.BuildShaderProgram();
     shaderFrame.Use();
@@ -163,10 +168,9 @@ int main() {
     glm::vec2 galaxyCenter = glm::vec2(WindowWidth / 2.0, WindowHeight / 2.0);
     float galaxyVelocity = 0;
     float galaxyRadius = 250 * DISTANCE_SCALE * 2;
+    float stddev = galaxyRadius * 0.1;
     particles = new Particle[NUM_PARTICLES];
-    int centerIDX = std::floor(NUM_PARTICLES / 2.0);
-    spawnGalaxy(particles, NUM_PARTICLES, 3.5, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter, glm::vec2(-0.4, -0.2) * galaxyVelocity);
-    //spawnGalaxy(&particles[centerIDX], centerIDX, galaxyVelocity, galaxyRadius, particleDiameter / 2.0f, 5, galaxyCenter - glm::vec2(WindowWidth * 0.3, WindowHeight * 0.2), glm::vec2(-0.1, 0.2)* galaxyVelocity);
+    spawnGalaxy(particles, NUM_PARTICLES, INITIAL_MEAN_VELOCITY, galaxyRadius, particleDiameter / 2.0f, stddev, galaxyCenter, glm::vec2(-0.4, -0.2) * galaxyVelocity);
 
 
     unsigned int ParticlesVBO, ParticlesVAO;
@@ -186,6 +190,8 @@ int main() {
 
 
     // Render loop
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
     glClearColor(0, 0, 0, 0);
     glPointSize(PARTICLE_RADIUS);
     glLineWidth(1.0f);
@@ -193,6 +199,10 @@ int main() {
     glm::mat4 locTransform = glm::mat4(1.0f);
     locTransform = glm::scale(locTransform, glm::vec3(2.0f / WindowWidth, 2.0f / WindowHeight, 2.0f / WindowHeight));
     locTransform = glm::translate(glm::mat4(1.0f), glm::vec3(-1, -1, 0)) * locTransform;
+
+
+    // Pre-calculate forces for the verlet solver
+    calculateForces(particles, NUM_PARTICLES);
 
     double loopTime = glfwGetTime();
     int frameCount = 0;
@@ -206,10 +216,11 @@ int main() {
         double frameTime = (glfwGetTime() - loopTime);
         double deltaTime = frameTime * SIMULATION_SPEED;
         loopTime = glfwGetTime();  
+
+        deltaTime = DELTA_TIME * SIMULATION_SPEED;
+
 #ifdef BENCHMARK
         deltaTime = BENCHMARK_DELTA_TIME * SIMULATION_SPEED;
-#elifdef DEBUG
-        deltaTime = 1.0 / 45.0 * SIMULATION_SPEED;
 #endif
 
         camera->HandleCameraInput(frameTime);
@@ -281,7 +292,26 @@ void windowSizeCallback(GLFWwindow* window, int width, int height) {
 
 void updateParticles(Particle* particles, unsigned int numParticles, double deltaTime, const Boundaries& boundaries)
 {
-    // 1. Accumulate forces
+    halfKickAndDrift(particles, numParticles, deltaTime);
+
+    calculateForces(particles, numParticles);
+    // 2. Apply forces
+    // addGravityForce(particles, numParticles, deltaTime);
+
+    // 3. Handle constraints
+    halfKick(particles, NUM_PARTICLES, deltaTime);  // TODO: Do this as compute shader
+
+    if (BCOLLISION)
+    {
+        collisionConstraintSolver(particles, NUM_PARTICLES, deltaTime);
+    }
+
+    // Boundary constraint must be activated until the QuadTrees size is dynamically adjusted to guarantee particles far out are not out of bounds
+    // boundariesConstraintBounce(particles, NUM_PARTICLES, deltaTime, boundaries);  
+}
+
+void calculateForces(Particle* particles, unsigned int numParticles)
+{
     float maxX, minX, maxY, minY;
     maxX = maxY = INT_MIN;
     minX = minY = INT_MAX;
@@ -311,28 +341,16 @@ void updateParticles(Particle* particles, unsigned int numParticles, double delt
     {
         quadTree->InsertParticle(&particles[i]);
     }
+
     // quadTree->CalculateNodeIDs();
     quadTree->CalculateForces(particles, NUM_PARTICLES);  // TODO: Optimize this. It is now multithreaded, but the calculation per particle is still really slow
+    
     if (bShowQuadTree)
     {
         delete boundingBoxes;
         boundingBoxes = quadTree->GetBoundingBoxes();
     }
     delete quadTree;
-
-    // 2. Apply forces
-    // addGravityForce(particles, numParticles, deltaTime);
-
-    // 3. Handle constraints
-    verletSolver(particles, NUM_PARTICLES, deltaTime);  // TODO: Do this as compute shader
-
-    if (BCOLLISION)
-    {
-        collisionConstraintSolver(particles, NUM_PARTICLES, deltaTime);
-    }
-
-    // Boundary constraint must be activated until the QuadTrees size is dynamically adjusted to guarantee particles far out are not out of bounds
-    // boundariesConstraintBounce(particles, NUM_PARTICLES, deltaTime, boundaries);  
 }
 
 glm::vec2 getAttractiveForce(MassObject& firstPoint, MassObject& secondPoint)
@@ -349,18 +367,27 @@ glm::vec2 getAttractiveForce(MassObject& firstPoint, MassObject& secondPoint)
     return pointDirection * affectingForce * FORCE_SCALE;
 }
 
-void verletSolver(Particle* particles, unsigned int numParticles, double deltaTime)
+void halfKickAndDrift(Particle* particles, unsigned int numParticles, double deltaTime)
 {
-    // 2. Apply forces (acceleration) and velocitys to particles
 #pragma omp parallel for
     for (signed int i = 0; i < numParticles; ++i)
     {
-        glm::vec2 acceleration = particles[i].accumulatedForces / particles[i].mass;
+        glm::vec2 acceleration = particles[i].accelerationForce / particles[i].mass;
         glm::vec<2, double> deltaPosition = particles[i].velocity * static_cast<float>(deltaTime) + 0.5f * acceleration * static_cast<float>(deltaTime * deltaTime);
-        particles[i].position += deltaPosition;
-        particles[i].velocity += acceleration * static_cast<float>(deltaTime);
-        particles[i].accumulatedForces = glm::vec2(0);
+        
+        particles[i].velocity += 0.5f * static_cast<float>(deltaTime) * acceleration;
+        particles[i].position += static_cast<float>(deltaTime) * particles[i].velocity;
+        particles[i].accelerationForce = acceleration;
+    }
+}
 
+void halfKick(Particle* particles, unsigned int numParticles, double deltaTime)
+{
+#pragma omp parallel for
+    for (signed int i = 0; i < numParticles; ++i)
+    {
+        glm::vec2 acceleration = particles[i].accelerationForce / particles[i].mass;
+        particles[i].velocity += 0.5f * static_cast<float>(deltaTime) * acceleration;
 
 #ifdef DEBUG
         if (i == 0)
@@ -375,7 +402,7 @@ void addGravityForce(Particle* particles, unsigned int numParticles, double delt
     for (uint32_t i = 0; i < numParticles; ++i)
     {
         // TODO: Investigate formula: should be m * a; a = g
-        particles[i].accumulatedForces += glm::vec2(0, -particles[i].mass * (9.81 * DISTANCE_SCALE * GRAVITY_SCALE) / (deltaTime * deltaTime));
+        particles[i].accelerationForce += glm::vec2(0, -particles[i].mass * (9.81 * DISTANCE_SCALE * GRAVITY_SCALE) / (deltaTime * deltaTime));
     }
 }
 
@@ -566,19 +593,24 @@ void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, 
 
 Particle* spawnGalaxy(Particle* particles, int numParticles, float velocity, float radius, float particleRadius, float stddev, glm::vec2 center, glm::vec2 galaxyVelocity)
 {
+    std::random_device rd{}; 
+
+    // Mersenne twister PRNG, initialized with seed from previous random device instance
+    std::mt19937 gen{rd()}; 
+    std::normal_distribution<double> d{radius, stddev};
+    std::uniform_real_distribution<double> r(0, std::_Pi_val * 2);
+
 #pragma omp parallel for
     for (signed int i = 0; i < numParticles; ++i)
     {
         // Particles spawn in a normal distribution distance from the radius
-        double randNumber = ((std::rand() / (double)RAND_MAX) * 2 - 1) * 25;
-        double normalDeviation = (0 + normalDistribution(randNumber, 0, 2 * stddev)) * (randNumber > 0 ? 1 : -1);
-        double centerDeviation = radius + normalDeviation * radius * stddev;
+        double centerDeviation = d(gen);
 
-        double randAngle = std::rand() / (float)RAND_MAX * std::_Pi_val * 2;
+        double randAngle = r(gen);
         double velAngle = randAngle + std::_Pi_val / 2.0;
         particles[i].position = glm::vec2(cos(randAngle), -sin(randAngle)) * (float)centerDeviation + center;
         particles[i].velocity = glm::vec2(cos(velAngle), -sin(velAngle)) * velocity + galaxyVelocity;
-        particles[i].mass = 9999999; // sqrt((double)std::rand() / RAND_MAX) * 1000000 + 1;  // Add 1 to avoid numeric instability and a resulting weight of zero -> nan force
+        particles[i].mass = TOTAL_MASS / float(NUM_PARTICLES);
         particles[i].radius = particleRadius;
     }
 
