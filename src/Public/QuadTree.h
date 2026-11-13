@@ -9,7 +9,7 @@
 #define FORCE_SCALE 1.0
 #define THETA 0.5f  // Value between 0 and 1. The smaller the number the more accurate the simulation. 0.5 provides a good trade off between performance and simulation accuracy. A very large value >1 approximates a single force in the screens center
 #define DISTANCE_EPSILON 5
-#define NUM_THREADS 12
+#define NUM_THREADS 10
 #define MAX_RECURSION 20
 
 typedef std::tuple<float, glm::vec2> MassObject;

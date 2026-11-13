@@ -206,7 +206,7 @@ void Internal::CalculateEffectingForce(Particle* inParticle)
 	{
 		MassObject object1 = MassObject(inParticle->mass, inParticle->position);
 		MassObject object2 = MassObject(mass, centerOfMass);
-		inParticle->accelerationForce += GetInteractionForce(object1, object2);
+		inParticle->acceleration += GetInteractionForce(object1, object2);
 	}
 	else
 	{
@@ -367,7 +367,7 @@ void End::CalculateEffectingForce(Particle* inParticle)
 		MassObject object1 = MassObject(inParticle->mass, inParticle->position);
 		MassObject object2 = MassObject(particle->mass, particle->position);
 
-		inParticle->accelerationForce += GetInteractionForce(object1, object2);
+		inParticle->acceleration += GetInteractionForce(object1, object2);
 	}
 }
 

@@ -40,6 +40,7 @@ add_executable(ParticleSimulation
         src/Public/Shader.h     src/Private/Shader.cpp
         src/Public/Camera.h     src/Private/Camera.cpp
         src/Public/QuadTree.h   src/Private/QuadTree.cpp
+        src/Public/FlatQuadTree.h   src/Private/FlatQuadTree.cpp
         src/Shaders/ShadersInComp.h)
 
 target_compile_options(ParticleSimulation PRIVATE /openmp)

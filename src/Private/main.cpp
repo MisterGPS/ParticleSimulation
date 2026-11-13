@@ -9,15 +9,15 @@
 #include "../Public/Particle.h"
 #include "../Public/Shader.h"
 #include "../Public/Camera.h"
-#include "../Public/QuadTree.h"
+#include "../Public/FlatQuadTree.h"
 #include "../Shaders/ShadersInComp.h"
 
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 600000
-#define PARTICLE_RADIUS 1
+#define NUM_PARTICLES 40000
+#define PARTICLE_RADIUS 2
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
 #define TOTAL_MASS 40000000
 #define INITIAL_MEAN_VELOCITY 200
@@ -26,7 +26,7 @@
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME false
 
-#define DELTA_TIME (1.0 / 10.0)
+#define DELTA_TIME (1.0 / 20.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -36,6 +36,7 @@
 
 
 typedef std::tuple<glm::vec<2, double>, glm::vec<2, double>> Boundaries;
+FlatQuadTree* quadTree = new FlatQuadTree(NUM_PARTICLES, glm::vec2(0), 1);
 
 void windowSizeCallback(GLFWwindow* window, int width, int height);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
@@ -53,15 +54,12 @@ void boundariesConstraintImpulse(Particle* particles, unsigned int numParticles,
 void boundariesConstraintBounce(Particle* particles, unsigned int numParticles, double deltaTime, const Boundaries& boundaries);
 void collisionConstraintSolver(Particle* particles, unsigned int numParticles, double deltaTime);
 
-inline glm::vec2 getAttractiveForce(MassObject& firstPoint, MassObject& secondPoint);
-
-void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, unsigned int VBO, unsigned int EBO);
+void DrawQuadTree(unsigned int VAO, unsigned int VBO, unsigned int EBO);
 Particle* spawnGalaxy(Particle* particles, int numParticles, float velocity, float radius, float particleRadius, float stddev = 0, glm::vec2 center = glm::vec2(0), glm::vec2 galaxyVelocity = glm::vec2(0));  // Spawns a circle galaxy at the specified position
 inline double normalDistribution(double x, double mean, double stddev);
 
 Camera* camera = nullptr;
 bool bShowQuadTree = false;
-std::vector<BoundingBox>* boundingBoxes;
 
 
 int main() {
@@ -76,7 +74,6 @@ int main() {
     Boundaries boundaries = Boundaries(glm::vec<2, double>(WindowWidth, WindowHeight), glm::vec<2, double>(0, 0));
 
     float particleDiameter = PARTICLE_RADIUS;
-    boundingBoxes = new std::vector<BoundingBox>();
 
     std::srand(std::time(0));
     glfwInit();
@@ -258,7 +255,7 @@ int main() {
             }
             shaderFrame.SetMat4("transformMatrix", transform);
             shaderFrame.SetVec4("aColor", glm::vec4(0.0f, 1.0f, 0.1f, 0.0f));
-            DrawBoundingBoxes(boundingBoxes, VAOfV2D, VBOfV2D, EBOfV2D);
+            DrawQuadTree(VAOfV2D, VBOfV2D, EBOfV2D);
         }
 
         shader.Use();
@@ -337,57 +334,39 @@ void calculateForces(Particle* particles, unsigned int numParticles)
     double treeWidthY = std::max(maxY - centerY, centerY - minY);
     float treeMaxWidth = std::max(treeWidthX, treeWidthY) * 2.0f;
 
-    QuadTree* quadTree = new QuadTree(THETA, treeMaxWidth, treeCenter);
+    quadTree->clear(treeCenter, treeMaxWidth);
     for (size_t i = 0; i < NUM_PARTICLES; ++i)
     {
-        quadTree->InsertParticle(&particles[i]);
+        quadTree->insert(particles, i);
+        // quadTree->InsertParticle(&particles[i]);     // Original QuadTree implementation
     }
 
+    quadTree->calculateForces(particles, NUM_PARTICLES);
     // quadTree->CalculateNodeIDs();
-    quadTree->CalculateForces(particles, NUM_PARTICLES);  // TODO: Optimize this. It is now multithreaded, but the calculation per particle is still really slow
-    
-    if (bShowQuadTree)
-    {
-        delete boundingBoxes;
-        boundingBoxes = quadTree->GetBoundingBoxes();
-    }
-    delete quadTree;
-}
-
-glm::vec2 getAttractiveForce(MassObject& firstPoint, MassObject& secondPoint)
-{
-    auto& [mass1, position1] = firstPoint;
-    auto& [mass2, position2] = secondPoint;
-
-    glm::vec<2, double> deltaVector = (position2 - position1);
-    double pointDistanceSquared = sqrt(powf(deltaVector.x, 2) + powf(deltaVector.y, 2));
-
-    glm::vec<2, double> pointDirection = glm::normalize(deltaVector);
-    double affectingForce = GRAVITATIONAL_CONSTANT * (mass1 * mass2) / pointDistanceSquared;
-
-    return pointDirection * affectingForce * FORCE_SCALE;
+    // quadTree->CalculateForces(particles, NUM_PARTICLES);  // TODO: Optimize this. It is now multithreaded, but the calculation per particle is still really slow
+    //delete quadTree;
 }
 
 void halfKickAndDrift(Particle* particles, unsigned int numParticles, double deltaTime)
 {
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 256)
     for (signed int i = 0; i < numParticles; ++i)
     {
-        glm::vec2 acceleration = particles[i].accelerationForce / particles[i].mass;
+        glm::vec2 acceleration = particles[i].acceleration;
         glm::vec<2, double> deltaPosition = particles[i].velocity * static_cast<float>(deltaTime) + 0.5f * acceleration * static_cast<float>(deltaTime * deltaTime);
         
         particles[i].velocity += 0.5f * static_cast<float>(deltaTime) * acceleration;
         particles[i].position += static_cast<float>(deltaTime) * particles[i].velocity;
-        particles[i].accelerationForce = acceleration;
+        particles[i].acceleration = acceleration;
     }
 }
 
 void halfKick(Particle* particles, unsigned int numParticles, double deltaTime)
 {
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 256)
     for (signed int i = 0; i < numParticles; ++i)
     {
-        glm::vec2 acceleration = particles[i].accelerationForce / particles[i].mass;
+        glm::vec2 acceleration = particles[i].acceleration;
         particles[i].velocity += 0.5f * static_cast<float>(deltaTime) * acceleration;
 
 #ifdef DEBUG
@@ -403,7 +382,7 @@ void addGravityForce(Particle* particles, unsigned int numParticles, double delt
     for (uint32_t i = 0; i < numParticles; ++i)
     {
         // TODO: Investigate formula: should be m * a; a = g
-        particles[i].accelerationForce += glm::vec2(0, -particles[i].mass * (9.81 * DISTANCE_SCALE * GRAVITY_SCALE) / (deltaTime * deltaTime));
+        particles[i].acceleration += glm::vec2(0, -particles[i].mass * (9.81 * DISTANCE_SCALE * GRAVITY_SCALE) / (deltaTime * deltaTime));
     }
 }
 
@@ -554,9 +533,11 @@ void handleKeyInput(GLFWwindow* window, double deltaTime)
     
 }
 
-void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, unsigned int VBO, unsigned int EBO)
+void DrawQuadTree(unsigned int VAO, unsigned int VBO, unsigned int EBO)
 {
-    int numBoxes = boxes->size();
+    const std::vector<Node*>* quadTreeNodes = quadTree->GetNodes();
+    size_t numBoxes = quadTree->GetNumUsedNodes();
+
     int arrayLength = 8 * numBoxes;
     float* vertices = new float[arrayLength];
     unsigned int* indices = new unsigned int[arrayLength];
@@ -564,10 +545,8 @@ void DrawBoundingBoxes(const std::vector<BoundingBox>* boxes, unsigned int VAO, 
 #pragma omp parallel for
     for (signed int i = 0; i < numBoxes; ++i)
     {
-        const BoundingBox& box = (*boxes)[i];
-
-        auto& [boxPosition, dimension] = box;
-        float halfDim = dimension / 2.0f;
+        glm::vec2 boxPosition = quadTreeNodes->at(i)->center;
+        float halfDim = quadTreeNodes->at(i)->halfWidth;
 
         float newVertices[] = { boxPosition.x + halfDim, boxPosition.y + halfDim,  // NE
                                 boxPosition.x + halfDim, boxPosition.y - halfDim,  // SE
