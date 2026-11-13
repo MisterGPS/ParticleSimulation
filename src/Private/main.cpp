@@ -16,17 +16,17 @@
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 40000
+#define NUM_PARTICLES 120000
 #define PARTICLE_RADIUS 2
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
 #define TOTAL_MASS 40000000
-#define INITIAL_MEAN_VELOCITY 200
+#define INITIAL_MEAN_VELOCITY 150
 #define GALAXY_STDDEV_SPREAD 0.5
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME false
 
-#define DELTA_TIME (1.0 / 20.0)
+#define DELTA_TIME (1.0 / 30.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -357,7 +357,7 @@ void halfKickAndDrift(Particle* particles, unsigned int numParticles, double del
         
         particles[i].velocity += 0.5f * static_cast<float>(deltaTime) * acceleration;
         particles[i].position += static_cast<float>(deltaTime) * particles[i].velocity;
-        particles[i].acceleration = acceleration;
+        particles[i].acceleration = glm::vec2(0);
     }
 }
 
@@ -535,7 +535,7 @@ void handleKeyInput(GLFWwindow* window, double deltaTime)
 
 void DrawQuadTree(unsigned int VAO, unsigned int VBO, unsigned int EBO)
 {
-    const std::vector<Node*>* quadTreeNodes = quadTree->GetNodes();
+    const std::vector<Node>& quadTreeNodes = quadTree->GetNodes();
     size_t numBoxes = quadTree->GetNumUsedNodes();
 
     int arrayLength = 8 * numBoxes;
@@ -545,8 +545,8 @@ void DrawQuadTree(unsigned int VAO, unsigned int VBO, unsigned int EBO)
 #pragma omp parallel for
     for (signed int i = 0; i < numBoxes; ++i)
     {
-        glm::vec2 boxPosition = quadTreeNodes->at(i)->center;
-        float halfDim = quadTreeNodes->at(i)->halfWidth;
+        glm::vec2 boxPosition = quadTreeNodes.at(i).center;
+        float halfDim = quadTreeNodes.at(i).halfWidth;
 
         float newVertices[] = { boxPosition.x + halfDim, boxPosition.y + halfDim,  // NE
                                 boxPosition.x + halfDim, boxPosition.y - halfDim,  // SE

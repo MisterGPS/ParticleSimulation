@@ -34,17 +34,13 @@ enum RelativeDirection
 
 class FlatQuadTree {
 private:
-    std::vector<Node*> nodes;
+    std::vector<Node> nodes;
     size_t usedNodes = 1;
 
 public:
     FlatQuadTree(size_t numNodes, glm::vec2 center, float maxTreeWidth) 
     {
-        nodes = std::vector<Node*>(EXPECTED_NODES_OVERSIZE_MULTIPLIER * numNodes);
-        for (size_t i = 0; i < nodes.size(); i++)
-        {
-            nodes[i] = new Node();
-        }
+        nodes = std::vector<Node>(EXPECTED_NODES_OVERSIZE_MULTIPLIER * numNodes);
     }
     
     void clear(glm::vec2 center, float maxTreeWidth);
@@ -52,7 +48,7 @@ public:
     void calculateForces(Particle* particlesArray, size_t arraySize);
     void calculateBranchWeights(Particle* particlesArray);
 
-    const std::vector<Node*>* GetNodes() { return &nodes; };
+    const std::vector<Node>& GetNodes() { return nodes; };
     size_t GetNumUsedNodes() { return usedNodes; };
     
 private:
