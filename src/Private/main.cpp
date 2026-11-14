@@ -16,17 +16,18 @@
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 120000
+#define NUM_PARTICLES 60000
 #define PARTICLE_RADIUS 2
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
 #define TOTAL_MASS 40000000
-#define INITIAL_MEAN_VELOCITY 150
-#define GALAXY_STDDEV_SPREAD 0.5
+#define INITIAL_MEAN_VELOCITY 80
+#define GALAXY_STDDEV_SPREAD 0.1
+#define GALAXY_RADIUS 250 * DISTANCE_SCALE * 2
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME false
 
-#define DELTA_TIME (1.0 / 30.0)
+#define DELTA_TIME (1.0 / 100.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -116,24 +117,29 @@ int main() {
     Shader shader = Shader();
     Shader shaderFrame = Shader();
 
-#ifdef RELEASE
+/**#ifdef RELEASE
     ShaderSource shaders = ShaderSource();
     shader.LoadShader(shaders.VertexParticle, SHADER_VERTEX);
     shader.LoadShader(shaders.FragmentParticle, SHADER_FRAGMENT);
 
     shaderFrame.LoadShader(shaders.VertexFrame, SHADER_VERTEX);
     shaderFrame.LoadShader(shaders.FragmentFrame, SHADER_FRAGMENT);
-#else
+#else*/
     shader.LoadShaderFromFile("./Shaders/VertexParticle.glsl", SHADER_VERTEX);
     shader.LoadShaderFromFile("./Shaders/FragmentParticle.glsl", SHADER_FRAGMENT);
 
     shaderFrame.LoadShaderFromFile("./Shaders/VertexFrame.glsl", SHADER_VERTEX);
     shaderFrame.LoadShaderFromFile("./Shaders/FragmentFrame.glsl", SHADER_FRAGMENT);
-#endif
+//#endif
+
+    glm::vec4 colorFast = glm::vec4(1.0f, 0.35f, 0.1f, 1);    // orange-red
+    glm::vec4 colorSlow = glm::vec4(0.15f, 0.3f, 1.0f, 1);     // deep blue
 
     shader.BuildShaderProgram();
     shader.Use();
-    shader.SetFloat("velocityMax", INITIAL_MEAN_VELOCITY * 3);
+    shader.SetFloat("velocityMax", 0.5f * sqrt(GALAXY_RADIUS * INITIAL_MEAN_VELOCITY) * INITIAL_MEAN_VELOCITY * GALAXY_STDDEV_SPREAD);
+    shader.SetVec4("aColorSlow", colorSlow);
+    shader.SetVec4("aColorFast", colorFast);
 
     shaderFrame.BuildShaderProgram();
     shaderFrame.Use();
@@ -165,7 +171,7 @@ int main() {
 
     glm::vec2 galaxyCenter = glm::vec2(WindowWidth / 2.0, WindowHeight / 2.0);
     float galaxyVelocity = 0;
-    float galaxyRadius = 250 * DISTANCE_SCALE * 2;
+    float galaxyRadius = GALAXY_RADIUS;
     float stddev = galaxyRadius * GALAXY_STDDEV_SPREAD;
     particles = new Particle[NUM_PARTICLES];
     spawnGalaxy(particles, NUM_PARTICLES, INITIAL_MEAN_VELOCITY, galaxyRadius, particleDiameter / 2.0f, stddev, galaxyCenter, glm::vec2(-0.4, -0.2) * galaxyVelocity);
@@ -179,12 +185,8 @@ int main() {
 
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)nullptr);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, velocity));
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, colorFast));
-    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, colorSlow));
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glEnableVertexAttribArray(3);
 
 
     // Render loop
@@ -577,19 +579,19 @@ Particle* spawnGalaxy(Particle* particles, int numParticles, float velocity, flo
 
     // Mersenne twister PRNG, initialized with seed from previous random device instance
     std::mt19937 gen{rd()}; 
-    std::normal_distribution<double> d{radius, stddev};
+    std::normal_distribution<float> d{0, stddev};
     std::uniform_real_distribution<double> r(0, std::_Pi_val * 2);
 
 #pragma omp parallel for
     for (signed int i = 0; i < numParticles; ++i)
     {
         // Particles spawn in a normal distribution distance from the radius
-        double centerDeviation = d(gen);
+        float centerDeviation = abs(d(gen));
 
         double randAngle = r(gen);
         double velAngle = randAngle + std::_Pi_val / 2.0;
-        particles[i].position = glm::vec2(cos(randAngle), -sin(randAngle)) * (float)centerDeviation + center;
-        particles[i].velocity = glm::vec2(cos(velAngle), -sin(velAngle)) * velocity + galaxyVelocity;
+        particles[i].position = glm::vec2(cos(randAngle), -sin(randAngle)) * centerDeviation + center;
+        particles[i].velocity = glm::vec2(cos(velAngle), -sin(velAngle)) * velocity * sqrt(centerDeviation) + galaxyVelocity;
         particles[i].mass = TOTAL_MASS / float(NUM_PARTICLES);
         particles[i].radius = particleRadius;
     }

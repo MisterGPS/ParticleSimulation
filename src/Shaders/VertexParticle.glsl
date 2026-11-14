@@ -1,8 +1,8 @@
 #version 460 core
 layout (location = 0) in vec2 aPos;
 layout (location = 1) in vec2 aVelocity;
-layout (location = 2) in vec4 aColorFast;
-layout (location = 3) in vec4 aColorSlow;
+uniform vec4 aColorFast;
+uniform vec4 aColorSlow;
 uniform mat4 transformMatrix;
 uniform float velocityMax;
 
