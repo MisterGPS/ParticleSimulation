@@ -22,27 +22,27 @@ void FlatQuadTree::insert(Particle *particlesArray, size_t insertParticleIndex, 
 
     while (true)
     {
-        Node* currentNode = &nodes.at(currentNodeID);
+        Node& currentNode = nodes.at(currentNodeID);
 
         // Check whether the node is a leaf
-        if (currentNode->firstChild == -1)  // Node is a leaf
+        if (currentNode.firstChild == -1)  // Node is a leaf
         {
-            if (!currentNode->sharedParticles.empty())   // Node is not a "multi"-particle
+            if (!currentNode.sharedParticles.empty())   // Node is not a "multi"-particle
             {
-                currentNode->sharedParticles.push_back(insertParticleIndex);
-            } else if (currentNode->particleIndex == -1) {
-                currentNode->particleIndex = insertParticleIndex;
+                currentNode.sharedParticles.push_back(insertParticleIndex);
+            } else if (currentNode.particleIndex == -1) {
+                currentNode.particleIndex = insertParticleIndex;
             } else if (steps >= MAX_DEPTH) {
-                currentNode->sharedParticles.push_back(currentNode->particleIndex);
-                currentNode->sharedParticles.push_back(insertParticleIndex);
-                currentNode->particleIndex = -1;
+                currentNode.sharedParticles.push_back(currentNode.particleIndex);
+                currentNode.sharedParticles.push_back(insertParticleIndex);
+                currentNode.particleIndex = -1;
             } else {   // Node has no children - Split node
                 splitNodeAndReInsert(particlesArray, currentNodeID, insertParticleIndex, steps);
             }
             return;
         } else {
-            auto direction = GetRelativeDirection(currentNode->center, particle->position);
-            currentNodeID = currentNode->firstChild + direction;
+            auto direction = GetRelativeDirection(currentNode.center, particle->position);
+            currentNodeID = currentNode.firstChild + direction;
             steps++;
         }
     }
@@ -76,28 +76,28 @@ void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existin
         }
     }
 
-    Node* currentNode = &nodes.at(existingNodeIndex);
+    Node& currentNode = nodes.at(existingNodeIndex);
 
     for (int i = 0; i <= 3; i++)
     {
-        Node* childNode = &nodes.at(firstChildIndex + i);
-        childNode->firstChild = -1;
-        childNode->particleIndex = -1;
-        childNode->center = currentNode->center + 0.5f * currentNode->halfWidth * getDirectionVector(i);
-        childNode->halfWidth = currentNode->halfWidth / 2;
-        childNode->sharedParticles.clear();
+        Node& childNode = nodes.at(firstChildIndex + i);
+        childNode.firstChild = -1;
+        childNode.particleIndex = -1;
+        childNode.center = currentNode.center + 0.5f * currentNode.halfWidth * getDirectionVector(i);
+        childNode.halfWidth = currentNode.halfWidth / 2;
+        childNode.sharedParticles.clear();
     }
 
     // Insert - we don't call insert, as we already know exactly where to insert what
     // The indices from firstChildIndex onwards are all already set to nullptr
     // 1. Copy the original nodes values over
     // 2. Insert the other particle normally with the insert function - not the fastest, but easiest
-    auto direction = GetRelativeDirection(currentNode->center, particlesArray[currentNode->particleIndex].position);
-    Node newNode = nodes.at(firstChildIndex + direction);
-    newNode.particleIndex = currentNode->particleIndex;
+    auto direction = GetRelativeDirection(currentNode.center, particlesArray[currentNode.particleIndex].position);
+    Node& newNode = nodes.at(firstChildIndex + direction);
+    newNode.particleIndex = currentNode.particleIndex;
 
-    currentNode->firstChild = firstChildIndex;
-    currentNode->particleIndex = -1;
+    currentNode.firstChild = firstChildIndex;
+    currentNode.particleIndex = -1;
 
     insert(particlesArray, particleIndex, existingNodeIndex, recursionSteps);
 }
@@ -109,7 +109,7 @@ void FlatQuadTree::calculateForces(Particle* particlesArray, size_t arraySize)
 #pragma omp parallel for schedule(dynamic, 256)
     for (int64_t i = 0; i < arraySize; i++)
     {
-        Particle* currentParticle = &particlesArray[i];
+        Particle& currentParticle = particlesArray[i];
 
         int activeNodeToCompare = 0;  // Always points to the last active node in nodesToCompare
         int nodesToCompare[3 * MAX_DEPTH + 4];
@@ -118,7 +118,7 @@ void FlatQuadTree::calculateForces(Particle* particlesArray, size_t arraySize)
         
         while (activeNodeToCompare >= 0)
         {
-            Node currentNode = nodes[nodesToCompare[activeNodeToCompare]];
+            Node& currentNode = nodes[nodesToCompare[activeNodeToCompare]];
 
             if (currentNode.mass == 0) 
             {
@@ -129,20 +129,20 @@ void FlatQuadTree::calculateForces(Particle* particlesArray, size_t arraySize)
             if (currentNode.firstChild == -1)  // Leaf
             {
                 // Calculate forces and apply them
-                currentParticle->acceleration += calculateAcceleration(
-                    currentParticle->position, currentNode.COM, currentNode.mass);
+                currentParticle.acceleration += calculateAcceleration(
+                    currentParticle.position, currentNode.COM, currentNode.mass);
 
                 activeNodeToCompare--;
                 continue;
             }
 
-            float distance = glm::distance(currentParticle->position, currentNode.COM);
+            float distance = glm::distance(currentParticle.position, currentNode.COM);
             double distanceRatio = currentNode.halfWidth * 2 / distance;
 
             if (distanceRatio < THETA)
             {
-                currentParticle->acceleration += calculateAcceleration(
-                    currentParticle->position, currentNode.COM, currentNode.mass);
+                currentParticle.acceleration += calculateAcceleration(
+                    currentParticle.position, currentNode.COM, currentNode.mass);
                 activeNodeToCompare--;
             } else {
                 // Remove the current node and add its children
@@ -170,37 +170,37 @@ void FlatQuadTree::calculateBranchWeights(Particle* particlesArray)
 {
     for (size_t i = usedNodes; i-- > 0; )
     {
-        Node* currentNode = &nodes.at(i);
+        Node& currentNode = nodes.at(i);
 
         // Verify whether the current node has children to be added, or not
-        if (currentNode->firstChild == -1)
+        if (currentNode.firstChild == -1)
         {
             // Verify whether this node is at max reecursion depth and has shared particles in an array
-            if (currentNode->sharedParticles.size() > 0)
+            if (currentNode.sharedParticles.size() > 0)
             {
                 float totalMass = 0;
-                for (int particleIndex : currentNode->sharedParticles)
+                for (int particleIndex : currentNode.sharedParticles)
                 {
                     totalMass += particlesArray[particleIndex].mass;
                 }
 
                 glm::vec2 com = glm::vec2(0, 0);
-                for (int particleIndex : currentNode->sharedParticles)
+                for (int particleIndex : currentNode.sharedParticles)
                 {
                     com += (particlesArray[particleIndex].mass / totalMass) * particlesArray[particleIndex].position;
                 }
 
-                currentNode->mass = totalMass;
-                currentNode->COM = com;
+                currentNode.mass = totalMass;
+                currentNode.COM = com;
             }
-            else if (currentNode->particleIndex == -1)
+            else if (currentNode.particleIndex == -1)
             {
-                currentNode->COM = glm::vec2(0, 0);
-                currentNode->mass = 0;
+                currentNode.COM = glm::vec2(0, 0);
+                currentNode.mass = 0;
             } else {
-                Particle* nodeParticle = &particlesArray[currentNode->particleIndex];
-                currentNode->COM = nodeParticle->position;
-                currentNode->mass = nodeParticle->mass;
+                Particle* nodeParticle = &particlesArray[currentNode.particleIndex];
+                currentNode.COM = nodeParticle->position;
+                currentNode.mass = nodeParticle->mass;
             }
         }
         else
@@ -208,18 +208,18 @@ void FlatQuadTree::calculateBranchWeights(Particle* particlesArray)
             float totalMass = 0;
             for (int j = 0; j <= 3; j++)
             {
-                totalMass += nodes.at(currentNode->firstChild + j).mass;
+                totalMass += nodes.at(currentNode.firstChild + j).mass;
             }
 
             glm::vec2 com = glm::vec2(0, 0);
             for (int j = 0; j <= 3; j++)
             {
-                Node childNode = nodes.at(currentNode->firstChild + j);
+                Node childNode = nodes.at(currentNode.firstChild + j);
                 com += (childNode.mass / totalMass) * childNode.COM;
             }
 
-            currentNode->mass = totalMass;
-            currentNode->COM = com;
+            currentNode.mass = totalMass;
+            currentNode.COM = com;
         }
     }
 }
