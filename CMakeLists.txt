@@ -49,8 +49,9 @@ add_custom_command(TARGET ParticleSimulation PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/src/shaders/ $<TARGET_FILE_DIR:ParticleSimulation>/Shaders)
 
-set_target_properties(ParticleSimulation PROPERTIES
-            LINK_FLAGS "/ENTRY:mainCRTStartup /SUBSYSTEM:WINDOWS")
+target_link_options(ParticleSimulation PRIVATE
+        /ENTRY:mainCRTStartup
+        $<IF:$<CONFIG:Debug>,/SUBSYSTEM:CONSOLE,/SUBSYSTEM:WINDOWS>)
 
 target_include_directories(ParticleSimulation PUBLIC ${glad_INCLUDE_DIRECTORY} ${GLFW_INCLUDE_DIRECTORY}
         ${KHR_INCLUDE_DIRECTORY} ${GLM_INCLUDE_DIRECTORY})

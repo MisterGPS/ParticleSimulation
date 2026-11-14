@@ -15,13 +15,12 @@
 #define NUM_THREADS 10
 
 struct Node {
-    size_t firstChild = -1;  // -1 if Node is leaf
-    size_t particleIndex = -1;  // -1 if Node is internal
+    int firstChild = -1;  // -1 if Node is leaf
+    int particleIndex = -1;  // -1 if Node is internal
     float halfWidth = 0;
     float mass = 0;
     glm::vec2 center = glm::vec2(0, 0);
     glm::vec2 COM = glm::vec2(0, 0);  // Center of mass
-    std::vector<int> sharedParticles;
 };
 
 enum RelativeDirection
@@ -35,18 +34,20 @@ enum RelativeDirection
 class FlatQuadTree {
 private:
     std::vector<Node> nodes;
+    std::vector<int> nextInLeaf;
     size_t usedNodes = 1;
 
 public:
     FlatQuadTree(size_t numNodes, glm::vec2 center, float maxTreeWidth) 
     {
         nodes = std::vector<Node>(EXPECTED_NODES_OVERSIZE_MULTIPLIER * numNodes);
+        nextInLeaf = std::vector<int>(numNodes);
     }
     
     void clear(glm::vec2 center, float maxTreeWidth);
-    void insert(Particle* particlesArray, size_t particleIndex);
-    void calculateForces(Particle* particlesArray, size_t arraySize);
-    void calculateBranchWeights(Particle* particlesArray);
+    void insert(Particle* particlesArray, int particleIndex);
+    void calculateForces(Particle* particlesArray, int arraySize);
+    void calculateBranchWeights(Particle* particlesArray, int arraySize);
 
     const std::vector<Node>& GetNodes() { return nodes; };
     size_t GetNumUsedNodes() { return usedNodes; };
@@ -54,7 +55,7 @@ public:
 private:
     static RelativeDirection GetRelativeDirection(const glm::vec2& centerPosition, const glm::vec2& compPosition);
     
-    void splitNodeAndReInsert(Particle* particlesArray, size_t existingNodeIndex, size_t particleIndex, size_t recursionSteps);
-    void insert(Particle* particlesArray, size_t particleIndex, size_t insertPositionIndex, size_t steps);
+    void splitNodeAndReInsert(Particle* particlesArray, int existingNodeIndex, int particleIndex, size_t recursionSteps);
+    void insert(Particle* particlesArray, int particleIndex, int insertPositionIndex, size_t steps);
     glm::vec2 calculateAcceleration(glm::vec2 position1, glm::vec2 position2, float mass2);
 };

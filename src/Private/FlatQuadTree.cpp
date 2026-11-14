@@ -1,4 +1,5 @@
 #include "../Public/FlatQuadTree.h"
+#include <iostream>
 
 void FlatQuadTree::clear(glm::vec2 center, float maxTreeWidth)
 {
@@ -7,17 +8,16 @@ void FlatQuadTree::clear(glm::vec2 center, float maxTreeWidth)
     nodes[0].halfWidth = maxTreeWidth / 2;
     nodes[0].firstChild = -1;
     nodes[0].particleIndex = -1;
-    nodes[0].sharedParticles.clear();
 }
 
-void FlatQuadTree::insert(Particle* particlesArray, size_t particleIndex)
+void FlatQuadTree::insert(Particle* particlesArray, int particleIndex)
 {
     insert(particlesArray, particleIndex, 0, 1);
 }
 
-void FlatQuadTree::insert(Particle *particlesArray, size_t insertParticleIndex, size_t insertPositionIndex, size_t steps)
+void FlatQuadTree::insert(Particle *particlesArray, int insertParticleIndex, int insertPositionIndex, size_t steps)
 {
-    size_t currentNodeID = insertPositionIndex;
+    int currentNodeID = insertPositionIndex;
     auto particle = &particlesArray[insertParticleIndex];
 
     while (true)
@@ -27,15 +27,23 @@ void FlatQuadTree::insert(Particle *particlesArray, size_t insertParticleIndex, 
         // Check whether the node is a leaf
         if (currentNode.firstChild == -1)  // Node is a leaf
         {
-            if (!currentNode.sharedParticles.empty())   // Node is not a "multi"-particle
+            if (currentNode.particleIndex == -1)   // Node is an empty leaf
             {
-                currentNode.sharedParticles.push_back(insertParticleIndex);
-            } else if (currentNode.particleIndex == -1) {
                 currentNode.particleIndex = insertParticleIndex;
+                nextInLeaf[currentNode.particleIndex] = -1;
             } else if (steps >= MAX_DEPTH) {
-                currentNode.sharedParticles.push_back(currentNode.particleIndex);
-                currentNode.sharedParticles.push_back(insertParticleIndex);
-                currentNode.particleIndex = -1;
+                int nextNode = currentNode.particleIndex;
+                while (nextInLeaf[nextNode] != -1)
+                {
+                    nextNode = nextInLeaf[nextNode];
+                }
+                nextInLeaf[nextNode] = insertParticleIndex;
+                nextInLeaf[insertParticleIndex] = -1;
+
+                //currentNode.sharedParticles.push_back(currentNode.particleIndex);
+                //currentNode.sharedParticles.push_back(insertParticleIndex);
+                //currentNode.particleIndex = -1;
+
             } else {   // Node has no children - Split node
                 splitNodeAndReInsert(particlesArray, currentNodeID, insertParticleIndex, steps);
             }
@@ -63,9 +71,9 @@ glm::vec2 getDirectionVector(int direction)
     return map[direction];
 }
 
-void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existingNodeIndex, size_t particleIndex, size_t recursionSteps)
+void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, int existingNodeIndex, int particleIndex, size_t recursionSteps)
 {
-    size_t firstChildIndex = usedNodes;
+    int firstChildIndex = usedNodes;
     usedNodes += 4;
     if (firstChildIndex + 3 >= nodes.size())
     {
@@ -78,6 +86,7 @@ void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existin
 
     Node& currentNode = nodes.at(existingNodeIndex);
 
+    // Initialize child nodes
     for (int i = 0; i <= 3; i++)
     {
         Node& childNode = nodes.at(firstChildIndex + i);
@@ -85,7 +94,7 @@ void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existin
         childNode.particleIndex = -1;
         childNode.center = currentNode.center + 0.5f * currentNode.halfWidth * getDirectionVector(i);
         childNode.halfWidth = currentNode.halfWidth / 2;
-        childNode.sharedParticles.clear();
+        childNode.particleIndex = -1;
     }
 
     // Insert - we don't call insert, as we already know exactly where to insert what
@@ -95,6 +104,7 @@ void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existin
     auto direction = GetRelativeDirection(currentNode.center, particlesArray[currentNode.particleIndex].position);
     Node& newNode = nodes.at(firstChildIndex + direction);
     newNode.particleIndex = currentNode.particleIndex;
+    nextInLeaf[currentNode.particleIndex] = -1;
 
     currentNode.firstChild = firstChildIndex;
     currentNode.particleIndex = -1;
@@ -102,9 +112,19 @@ void FlatQuadTree::splitNodeAndReInsert(Particle* particlesArray, size_t existin
     insert(particlesArray, particleIndex, existingNodeIndex, recursionSteps);
 }
 
-void FlatQuadTree::calculateForces(Particle* particlesArray, size_t arraySize)
+void FlatQuadTree::calculateForces(Particle* particlesArray, int arraySize)
 {
-    calculateBranchWeights(particlesArray);
+
+    for (int i = usedNodes; i-- > 0; )
+    {
+        Node& currentNode = nodes.at(i);
+        if (currentNode.firstChild >= (int)nodes.size() || currentNode.firstChild < -1)
+        {
+            std::cerr << "Detected invalid firstChild: " << currentNode.firstChild << std::endl;
+        }
+    }
+
+    calculateBranchWeights(particlesArray, arraySize);
 
 #pragma omp parallel for schedule(dynamic, 256)
     for (int64_t i = 0; i < arraySize; i++)
@@ -166,42 +186,37 @@ glm::vec2 FlatQuadTree::calculateAcceleration(glm::vec2 position1, glm::vec2 pos
     return affectingForce * FORCE_SCALE;
 }
 
-void FlatQuadTree::calculateBranchWeights(Particle* particlesArray)
+void FlatQuadTree::calculateBranchWeights(Particle* particlesArray, int arraySize)
 {
-    for (size_t i = usedNodes; i-- > 0; )
+    for (int i = usedNodes; i-- > 0; )
     {
         Node& currentNode = nodes.at(i);
+        if (currentNode.firstChild >= (int)nodes.size())
+        {
+            std::cerr << "Detected invalid firstChild: " << currentNode.firstChild << std::endl;
+        }
 
         // Verify whether the current node has children to be added, or not
         if (currentNode.firstChild == -1)
         {
-            // Verify whether this node is at max reecursion depth and has shared particles in an array
-            if (currentNode.sharedParticles.size() > 0)
-            {
-                float totalMass = 0;
-                for (int particleIndex : currentNode.sharedParticles)
-                {
-                    totalMass += particlesArray[particleIndex].mass;
-                }
+            float totalMass = 0;
+            int currentParticleIndex = currentNode.particleIndex;
 
-                glm::vec2 com = glm::vec2(0, 0);
-                for (int particleIndex : currentNode.sharedParticles)
-                {
-                    com += (particlesArray[particleIndex].mass / totalMass) * particlesArray[particleIndex].position;
-                }
-
-                currentNode.mass = totalMass;
-                currentNode.COM = com;
-            }
-            else if (currentNode.particleIndex == -1)
+            while (currentParticleIndex != -1)
             {
-                currentNode.COM = glm::vec2(0, 0);
-                currentNode.mass = 0;
-            } else {
-                Particle* nodeParticle = &particlesArray[currentNode.particleIndex];
-                currentNode.COM = nodeParticle->position;
-                currentNode.mass = nodeParticle->mass;
+                totalMass += particlesArray[currentParticleIndex].mass;
+                currentParticleIndex = nextInLeaf[currentParticleIndex];
             }
+
+            glm::vec2 com = glm::vec2(0, 0);
+            currentParticleIndex = currentNode.particleIndex;
+            while (currentParticleIndex != -1)
+            {
+                com += (particlesArray[currentParticleIndex].mass / totalMass) * particlesArray[currentParticleIndex].position;
+                currentParticleIndex = nextInLeaf[currentParticleIndex];
+            }
+            currentNode.mass = totalMass;
+            currentNode.COM = com;
         }
         else
         {

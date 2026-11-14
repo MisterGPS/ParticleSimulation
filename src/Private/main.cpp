@@ -16,18 +16,18 @@
 #define WINDOW_HEIGHT 1200
 #define DISTANCE_SCALE 1.0f    // Unit in meters; defines the size of the window in meters
 #define GRAVITY_SCALE 0.0015
-#define NUM_PARTICLES 60000
+#define NUM_PARTICLES 120000
 #define PARTICLE_RADIUS 2
 #define COEFFICIENT_OF_RESTITUTION 1.0  // 1 = elastic, 0 = perfectly inelastic
-#define TOTAL_MASS 40000000
-#define INITIAL_MEAN_VELOCITY 80
-#define GALAXY_STDDEV_SPREAD 0.1
+#define TOTAL_MASS 10000000
+#define INITIAL_MEAN_VELOCITY 20
+#define GALAXY_STDDEV_SPREAD 0.5
 #define GALAXY_RADIUS 250 * DISTANCE_SCALE * 2
 
 #define BCOLLISION NUM_PARTICLES < 1000 ? true : false
 #define B_RENDER_FRAME false
 
-#define DELTA_TIME (1.0 / 100.0)
+#define DELTA_TIME (1.0 / 30.0)
 
 #ifdef BENCHMARK
 #define BENCHMARK_WARMUP_STEPS 50       // Steps run before measurement starts
@@ -137,7 +137,7 @@ int main() {
 
     shader.BuildShaderProgram();
     shader.Use();
-    shader.SetFloat("velocityMax", 0.5f * sqrt(GALAXY_RADIUS * INITIAL_MEAN_VELOCITY) * INITIAL_MEAN_VELOCITY * GALAXY_STDDEV_SPREAD);
+    shader.SetFloat("velocityMax", 0.5f * GALAXY_RADIUS * INITIAL_MEAN_VELOCITY * GALAXY_STDDEV_SPREAD);
     shader.SetVec4("aColorSlow", colorSlow);
     shader.SetVec4("aColorFast", colorFast);
 
